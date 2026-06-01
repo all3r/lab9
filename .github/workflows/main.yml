@@ -80,3 +80,4 @@ jobs:
           echo "=== ПРИЛОЖЕНИЕ УСПЕШНО РАЗВЕРНУТО ==?"
           echo "Публичный URL:"
           curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*\.ngrok-free\.[a-z]*" || true
+          sleep 1800
