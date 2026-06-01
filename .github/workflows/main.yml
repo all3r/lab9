@@ -71,13 +71,20 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ngrok
 
       - name: Запуск Ngrok и получение ссылки
-        env:
-          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
-        run: |
-          ngrok config add-authtoken $NGROK_AUTHTOKEN
-          ngrok http 8000 --log=stdout &
-          sleep 5
-          echo "=== ПРИЛОЖЕНИЕ УСПЕШНО РАЗВЕРНУТО ==?"
-          echo "Публичный URL:"
-          curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*\.ngrok-free\.[a-z]*" || true
-          sleep 1800
+          env:
+            NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+          run: |
+            ngrok config add-authtoken $NGROK_AUTHTOKEN
+            
+            # ИСПРАВЛЕНИЕ 1: Явно пишем 127.0.0.1 вместо localhost, чтобы принудительно использовать IPv4
+            ngrok http 127.0.0.1:8000 --log=stdout &
+            
+            # ИСПРАВЛЕНИЕ 2: Даем серверу 20 секунд, чтобы контейнер Docker успел сделать все миграции и включить Gunicorn
+            sleep 20
+            
+            echo "=== ПРИЛОЖЕНИЕ УСПЕШНО РАЗВЕРНУТО ==="
+            echo "Публичный URL:"
+            curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*\.ngrok-free\.[a-z]*" || true
+            
+            echo "=== СЕРВЕР БУДЕТ АКТИВЕН 30 МИНУТ ДЛЯ ПРОВЕРКИ ==="
+            sleep 1800
