@@ -71,9 +71,9 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ngrok
 
       - name: Запуск Ngrok и получение ссылки
-          env:
-            NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
-          run: |
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
             ngrok config add-authtoken $NGROK_AUTHTOKEN
             
             # ИСПРАВЛЕНИЕ 1: Явно пишем 127.0.0.1 вместо localhost, чтобы принудительно использовать IPv4
