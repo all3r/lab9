@@ -1,0 +1,67 @@
+# Используем тот же образ Python, что и в нашем Dockerfile
+image: python:3.10-slim
+
+# Определяем порядок выполнения стадий. Деплой не начнется, пока не пройдут тесты и линтер.
+stages:
+  - test
+  - lint
+  - deploy
+
+# Задаем переменные окружения, чтобы Django мог подключиться к БД во время тестов
+variables:
+  DB_NAME: lab_db
+  DB_USER: lab_user
+  DB_PASSWORD: lab_password
+  DB_HOST: postgres
+  POSTGRES_DB: lab_db
+  POSTGRES_USER: lab_user
+  POSTGRES_PASSWORD: lab_password
+
+# Поднимаем временную базу данных PostgreSQL специально для прогона тестов
+services:
+  - postgres:13-alpine
+
+# Стадия 1: Автоматическое тестирование
+test_project:
+  stage: test
+  script:
+    - echo "Установка зависимостей..."
+    - pip install -r requirements.txt
+    - echo "Запуск тестов Django..."
+    - python manage.py test lab6
+
+# Стадия 2: Статический анализ кода
+lint_code:
+  stage: lint
+  script:
+    - echo "Установка зависимостей и линтера..."
+    - pip install -r requirements.txt
+    - echo "Запуск Pylint для приложения lab6..."
+    - pylint --load-plugins pylint_django lab6
+
+# Стадия 3: Имитация развертывания через Ngrok
+deploy_ngrok:
+  stage: deploy
+  script:
+    - echo "Подготовка к развертыванию..."
+    - apt-get update && apt-get install -y curl wget unzip
+
+    # Установка Ngrok
+    - curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+    - echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | tee /etc/apt/sources.list.d/ngrok.list
+    - apt-get update && apt-get install -y ngrok
+
+    # Добавляем токен (в реальном проекте берется из секретов GitLab)
+    # Замени NGROK_AUTHTOKEN на свой реальный токен от аккаунта ngrok
+    - ngrok config add-authtoken $NGROK_AUTHTOKEN
+
+    - echo "Запускаем Ngrok для проброса порта 8000..."
+    # Запускаем ngrok в фоновом режиме
+    - ngrok http 8000 --log=stdout &
+    - sleep 5
+
+    # Получаем сгенерированный публичный URL
+    - echo "Сайт успешно развернут! Доступен по адресу:"
+    - curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*\.ngrok-free.app"
+  only:
+    - main # Развертывание срабатывает только при пуше в основную ветку

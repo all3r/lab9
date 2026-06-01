@@ -1,0 +1,84 @@
+name: Django CI/CD Pipeline
+
+# Пайплайн запускается автоматически при пуше (отправке) кода в ветку main или master
+on:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  # === Стадия 1 и 2: Тестирование и Линтер ===
+  test_and_lint:
+    runs-on: ubuntu-latest
+
+    # Поднимаем временную базу данных PostgreSQL специально для прогона тестов
+    services:
+      postgres:
+        image: postgres:13-alpine
+        env:
+          POSTGRES_DB: lab_db
+          POSTGRES_USER: lab_user
+          POSTGRES_PASSWORD: lab_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v3
+
+      - name: Установка Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Установка библиотек
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Запуск тестов Django
+        env:
+          DB_NAME: lab_db
+          DB_USER: lab_user
+          DB_PASSWORD: lab_password
+          DB_HOST: localhost
+        run: |
+          python manage.py test lab6
+
+      - name: Статический анализ кода (Pylint)
+        run: |
+          pylint --load-plugins pylint_django lab6
+
+  # === Стадия 3: Развертывание (Деплой) ===
+  deploy_ngrok:
+    needs: test_and_lint # Эта стадия запустится только если тесты и линтер пройдут без ошибок
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Скачивание кода
+        uses: actions/checkout@v3
+
+      - name: Сборка и запуск контейнеров Docker
+        run: docker-compose up -d --build
+
+      - name: Установка Ngrok
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt-get update && sudo apt-get install -y ngrok
+
+      - name: Запуск Ngrok и получение ссылки
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          ngrok config add-authtoken $NGROK_AUTHTOKEN
+          # Запускаем ngrok в фоновом режиме
+          ngrok http 8000 --log=stdout &
+          sleep 5 # Даем утилите пару секунд на создание туннеля
+          echo "=== ПРИЛОЖЕНИЕ УСПЕШНО РАЗВЕРНУТО ==="
+          echo "Публичный URL:"
+          curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*.ngrok-free.app"

@@ -1,0 +1,6 @@
+Django==4.1.7
+Pillow
+gunicorn
+pylint
+pylint-django
+psycopg2-binary
