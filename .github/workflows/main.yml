@@ -44,6 +44,7 @@ jobs:
           DB_PASSWORD: lab_password
           DB_HOST: localhost
         run: |
+          python manage.py makemigrations lab6
           python manage.py test lab6
 
       - name: Статический анализ кода (Pylint)
